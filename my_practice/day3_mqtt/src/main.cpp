@@ -3,9 +3,8 @@
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include <task.h>
 #include "hw_mic.h"
-#include <queue.h>
+
 
 //function prototypes
 void task_read_mic(void *pvParameters); 
@@ -27,7 +26,7 @@ void setup() {
   //0. init Wifi
   delay(3000);
   Serial.begin(9600);
-  WiFi.begin("Xiaomi2020Laptop", "11112222");
+  WiFi.begin("Xiaomi5G", "111333888");
   while (WiFi.status() != WL_CONNECTED) {
     delay(100);
     Serial.println(".");
@@ -43,8 +42,7 @@ void setup() {
   // 2. create task to read mic 
   xTaskCreate(
     task_read_mic,    // task function
-    "task_read_mic"
-    "hw_mic_task",  // name of task
+    "task_read_mic",  // name of task
     4096,           // stack size of task
     NULL,           // parameter of the task
     3,              // priority of the task
@@ -54,8 +52,7 @@ void setup() {
   // 3. create task to proces mic data
   xTaskCreate(
     task_process_mic,    // task function
-    "task_process_mic"
-    "hw_mic_task",  // name of task
+    "task_process_mic",  // name of task
     4096,           // stack size of task
     NULL,           // parameter of the task
     3,              // priority of the task
@@ -63,15 +60,15 @@ void setup() {
   );
 
   //4. connect to mqtt broker
-  mqtt_client.setServer("broker.emqx.io", 1883);
-  mqtt_client.setCallback(on_message);
-  mqtt_client.connect("mqttx_9c07b4a7");
-  mqtt_client.subscribe("aiotbegineer/luca/esp32/cmd");
-  Serial.println("Connected to MQTT broker");
+    mqtt_client.setServer("broker.emqx.io", 1883);
+    mqtt_client.setCallback(on_message);
+    mqtt_client.connect("tztluca_883757348214838rfiafhdhfadfadklfad");
+    mqtt_client.subscribe("aiot/#");
+    Serial.println("Connected to MQTT broker");
 }
 
 void loop() {
-  mqtt_client.loop();
+  mqtt_client.loop(); // process incoming MQTT messages
   delay(1000);
   
 }
@@ -98,7 +95,7 @@ void task_process_mic(void *pvParameters) {
     xSemaphoreTake(xSemaphore, portMAX_DELAY);
     float avg_val = 0.0;
     for(int i = 0; i < 1600; i++) {
-      avg_val += (float)abs(mic_samples[mem_idx * 1600 + i]) / 1600;
+      avg_val = (float)abs(mic_samples[mem_idx * 1600 + i]) / 1600;
     }
     //Serial.println(avg_val);
   }
@@ -109,16 +106,16 @@ void on_message(char* topic, byte* payload, unsigned int length){
   memcpy(buf, payload, length);
   buf[length] = '\0';
   Serial.printf("Received on topic %s: %s\n", topic, buf);
-  deserializeJson(doc, buf);
-  if (doc["cmd"] == "listen"){
-    //do something
-    Serial.println("Start listening");
-    doc.clear();
-    doc["status"] = "ok" ;
-    doc["value"] = avg_val;
-    serializeJson(doc, buf);
-    mqtt_client.publish("aiotbegineer/luca/esp32/resp", buf);
+  // deserializeJson(doc, buf);
+  // if (doc["cmd"] == "listen"){
+  //   //do something
+  //   Serial.println("Start listening");
+  //   doc.clear();
+  //   doc["status"] = "ok" ;
+  //   doc["value"] = avg_val;
+  //   serializeJson(doc, buf);
+  //   mqtt_client.publish("aiot/luca/esp32/resp", buf);
 
-  }
+  // }
 
 }
