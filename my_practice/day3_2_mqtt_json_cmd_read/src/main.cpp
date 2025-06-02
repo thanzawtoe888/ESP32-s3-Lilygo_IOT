@@ -16,6 +16,8 @@ int mem_idx=0;
 int32_t mic_samples[2*1600]; // 2 seconds of 16000Hz samples
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
+JsonDocument doc;\
+float avg_val = 0.0; // average value of samples
 
 void setup(){
   delay(3000); // wait for serial monitor
@@ -66,6 +68,8 @@ void setup(){
 }
   
 void loop() {
+  mqtt_client.publish("tzt/luca/esp32/status", "alive"); // publish status message
+  Serial.println("Published status message");
   mqtt_client.loop(); // process MQTT messages
   if (!mqtt_client.connected()) {
     Serial.println("MQTT client not connected, reconnecting...");
@@ -96,7 +100,7 @@ void task_process_mic(void *pvParameters){
   //loop()
   while(1){
     xSemaphoreTake(xSemaphore, portMAX_DELAY); // wait for semaphore to be given
-    float avg_val = 0.0; // average value of samples
+    avg_val = 0.0; // average value of samples
     for (int i = 0; i < 1600; i++) {
       avg_val += (float)abs(mic_samples[mem_idx*1600 + i]) / 1600.0; // calculate average value
       
@@ -110,4 +114,23 @@ void on_message(char* topic, byte* payload, unsigned int length) {
   memcpy(buf, payload, length);
   buf[length] = '\0'; // null-terminate the string
   Serial.printf("Received message on topic %s: %s\n", topic, buf);
+  deserializeJson(doc, buf); // parse JSON message
+  if (doc["cmd"] == "listen") {
+    Serial.println("Start command received");
+    // handle start command
+    doc.clear(); // clear document
+    doc["status"] = "ok"; // set status to ok
+    doc["value"] = avg_val; // set value to average value;
+    serializeJson(doc, buf); // serialize JSON message
+    mqtt_client.publish("tzt/luca/esp32/resp", buf); // publish status message
+
+  } else if (doc["cmd"] == "stop") { // downlink 
+    Serial.println("Stop command received");
+    // handle stop command
+
+  } else {
+    Serial.println("Unknown command received");
+    
+  }
+
 }
