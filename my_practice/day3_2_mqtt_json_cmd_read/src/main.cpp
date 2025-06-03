@@ -73,7 +73,7 @@ void loop() {
   mqtt_client.loop(); // process MQTT messages
   if (!mqtt_client.connected()) {
     Serial.println("MQTT client not connected, reconnecting...");
-    mqtt_client.connect("maaeloe!@$@$&^@%!*&^%$&^@!%^$*&@faer343", "ttt", "zzz"); // reconnect
+    mqtt_client.connect("alexa!@$@$&^@%!*&^%$&^@!%^$*&@faer343", "ttt", "zzz"); // reconnect
   }
 
  delay(1000);  // main loop does nothing, tasks handle the work

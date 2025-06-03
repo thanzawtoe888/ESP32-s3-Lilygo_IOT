@@ -5,117 +5,132 @@
 #include <ArduinoJson.h>
 #include "hw_mic.h"
 
-
-//function prototypes
-void task_read_mic(void *pvParameters); 
+// function prototypes
+void task_read_mic(void *pvParameters);
 void task_process_mic(void *pvParameters);
-void on_message(char* topic, byte* payload, unsigned int length);
-
+void on_message(char* topic, byte* payload, unsigned int length);  //downlink from PubSubClient.h
 
 //shared variables
 SemaphoreHandle_t xSemaphore = NULL;
-int mem_idx = 0;
-int32_t mic_samples[2*1600];
+int mem_idx=0;
+int32_t mic_samples[2*1600]; // 2 seconds of 16000Hz samples
 WiFiClient espClient;
 PubSubClient mqtt_client(espClient);
-JsonDocument doc;
-float avg_val = 0.0;
+JsonDocument doc;\
+float avg_val = 0.0; // average value of samples
 
-void setup() {
-
-  //0. init Wifi
-  delay(3000);
+void setup(){
+  delay(3000); // wait for serial monitor
   Serial.begin(9600);
-  WiFi.begin("Xiaomi5G", "111333888");
+  WiFi.begin("Xiaomi2020Laptop", "11112222");
   while (WiFi.status() != WL_CONNECTED) {
-    delay(100);
-    Serial.println(".");
+    delay(500);
+    Serial.print(".");
   }
-  Serial.println("WiFi Connected");
+  Serial.println("Connected to WiFi");
   Serial.printf("IP address: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("MAC address: %s\n", WiFi.macAddress().c_str());
   Serial.printf("RSSI: %d\n", WiFi.RSSI());
   
-
-  // 1. preapre semaphore 
+  // 1. prepare semaphore
   xSemaphore = xSemaphoreCreateBinary();
 
-  // 2. create task to read mic 
+  // 2. create task to read mic
   xTaskCreate(
-    task_read_mic,    // task function
-    "task_read_mic",  // name of task
-    4096,           // stack size of task
-    NULL,           // parameter of the task
-    3,              // priority of the task
-    NULL           // task handle to keep track of created task
-  );
-  
-  // 3. create task to proces mic data
-  xTaskCreate(
-    task_process_mic,    // task function
-    "task_process_mic",  // name of task
-    4096,           // stack size of task
-    NULL,           // parameter of the task
-    3,              // priority of the task
-    NULL           // task handle to keep track of created task
+    task_read_mic,          // Task function
+    "task_read_mic",          // Name of the task
+    4096,                   // Stack size in bytes
+    NULL,                   // Task input parameter
+    3,                      // Priority of the task
+    NULL                    // Task handle to keep track of the task
   );
 
-  //4. connect to mqtt broker
-    mqtt_client.setServer("broker.emqx.io", 1883);
-    mqtt_client.setCallback(on_message);
-    mqtt_client.connect("tztluca_883757348214838rfiafhdhfadfadklfad");
-    mqtt_client.subscribe("aiot/#");
-    Serial.println("Connected to MQTT broker");
+  // 3. create task to process mic data
+  xTaskCreate(
+    task_process_mic,          // Task function
+    "task_process_mic",          // Name of the task
+    4096,                   // Stack size in bytes
+    NULL,                   // Task input parameter
+    3,                      // Priority of the task
+    NULL                    // Task handle to keep track of the task
+  );
+
+  // 4. connect to MQTT broker
+  mqtt_client.setServer("broker.emqx.io", 1883); // public broker
+  mqtt_client.setCallback(on_message); // set callback for incoming messages
+  mqtt_client.connect("tzt_fjasdfjghehtrej", "ttt", "zzz"); // connect with user and password
+  mqtt_client.subscribe("tzt/luca/esp32/cmd"); // subscribe to topic
+  if (!mqtt_client.connected()) {
+    Serial.println("Failed to connect to MQTT broker");
+    return;
+  }
+  Serial.println("Connected to MQTT broker");
 }
-
+  
 void loop() {
-  mqtt_client.loop(); // process incoming MQTT messages
-  delay(1000);
-  
-}
+  mqtt_client.publish("tzt/luca/esp32/status", "alive"); // publish status message
+  // Serial.println("Published status message");
+  mqtt_client.loop(); // process MQTT messages
+  if (!mqtt_client.connected()) {
+    Serial.println("MQTT client not connected, reconnecting...");
+    mqtt_client.connect("alexa!@$@$&^@%!*&^%$&^@!%^$*&@faer343", "ttt", "zzz"); // reconnect
+  }
 
-void task_read_mic(void *pvParameters) {
-  int cur_mem_idx = 0;
+ delay(1000);  // main loop does nothing, tasks handle the work
+}
+ 
+void task_read_mic(void *pvParameters){
+  //setup ()
+  int cur_mem_idx = 0; // current memory index
   hw_mic_init(16000);
-  //loop
-  while(1) {
-    static unsigned int num_samples = 1600;
-    hw_mic_read(mic_samples + cur_mem_idx*1600, &num_samples);
-    mem_idx = cur_mem_idx;
-    cur_mem_idx = (cur_mem_idx + 1) % 2;  
-    xSemaphoreGive(xSemaphore);
-
-    }
-  
-}
-
-
-void task_process_mic(void *pvParameters) {
-  
-  while(1) {
-    xSemaphoreTake(xSemaphore, portMAX_DELAY);
-    float avg_val = 0.0;
-    for(int i = 0; i < 1600; i++) {
-      avg_val = (float)abs(mic_samples[mem_idx * 1600 + i]) / 1600;
-    }
-    //Serial.println(avg_val);
+  //loop()
+  while(1){
+    unsigned int num_samples = 1600; // number of samples to read
+    hw_mic_read(mic_samples + mem_idx*1600 , &num_samples);
+    mem_idx = cur_mem_idx; // update memory index
+    cur_mem_idx = (cur_mem_idx+1) %2; // current memory index
+    xSemaphoreGive(xSemaphore); // give semaphore to signal that data is ready
   }
 }
 
-void on_message(char* topic, byte* payload, unsigned int length){
+
+void task_process_mic(void *pvParameters){
+  //setup ()
+  Serial.begin(9600);
+  //loop()
+  while(1){
+    xSemaphoreTake(xSemaphore, portMAX_DELAY); // wait for semaphore to be given
+    avg_val = 0.0; // average value of samples
+    for (int i = 0; i < 1600; i++) {
+      avg_val += (float)abs(mic_samples[mem_idx*1600 + i]) / 1600.0; // calculate average value
+      
+    }
+    //Serial.println(avg_val); // print average value
+  }
+}
+
+void on_message(char* topic, byte* payload, unsigned int length) {
   char buf[200];
   memcpy(buf, payload, length);
-  buf[length] = '\0';
-  Serial.printf("Received on topic %s: %s\n", topic, buf);
-  // deserializeJson(doc, buf);
-  // if (doc["cmd"] == "listen"){
-  //   //do something
-  //   Serial.println("Start listening");
-  //   doc.clear();
-  //   doc["status"] = "ok" ;
-  //   doc["value"] = avg_val;
-  //   serializeJson(doc, buf);
-  //   mqtt_client.publish("aiot/luca/esp32/resp", buf);
+  buf[length] = '\0'; // null-terminate the string
+  Serial.printf("Received message on topic %s: %s\n", topic, buf);
+  deserializeJson(doc, buf); // parse JSON message
+  if (doc["cmd"] == "listen") {
+    Serial.println("Start command received");
+    // handle start command
+    doc.clear(); // clear document
+    doc["status"] = "ok"; // set status to ok
+    doc["value"] = avg_val; // set value to average value;
+    serializeJson(doc, buf); // serialize JSON message
+    mqtt_client.publish("tzt/luca/esp32/resp", buf); // publish status message
 
-  // }
+  } else if (doc["cmd"] == "stop") { // downlink 
+    Serial.println("Stop command received");
+    // handle stop command
+
+  } else {
+    Serial.println("Unknown command received");
+    
+  }
 
 }
