@@ -56,7 +56,7 @@ void setup(){
   );
 
   // 4. connect to MQTT broker
-  mqtt_client.setServer("broker.emqx.io", 1883); // public broker
+  mqtt_client.setServer("192.168.137.1", 1883); // public broker
   mqtt_client.setCallback(on_message); // set callback for incoming messages
   mqtt_client.connect("tzt_fjasdfjghehtrej", "ttt", "zzz"); // connect with user and password
   mqtt_client.subscribe("tzt/luca/esp32/cmd"); // subscribe to topic
@@ -73,7 +73,7 @@ void loop() {
   mqtt_client.loop(); // process MQTT messages
   if (!mqtt_client.connected()) {
     Serial.println("MQTT client not connected, reconnecting...");
-    mqtt_client.connect("alexa!@$@$&^@%!*&^%$&^@!%^$*&@faer343", "ttt", "zzz"); // reconnect
+    mqtt_client.connect("alexa!@$@$&^@%!*&^%$&^@!%^$*&@faer343"); // reconnect
   }
 
  delay(1000);  // main loop does nothing, tasks handle the work

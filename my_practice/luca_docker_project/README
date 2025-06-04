@@ -1,3 +1,6 @@
 ## docker build -t luca_docker . 
 
 ## docker run luca_docker
+
+## docker run -p 1883:1883 -v "$PWD/config:/mosquitto/config/" eclipse-mosquitto    
+### map this folder($PWD/config) to read folder inside docker "$PWD/config:/mosquitto/config/"
