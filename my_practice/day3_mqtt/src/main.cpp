@@ -68,7 +68,13 @@ void setup(){
 }
   
 void loop() {
-  mqtt_client.publish("tzt/luca/esp32/status", "alive"); // publish status message
+  float data = random (0, 100) / 100.0; // generate random data for testing
+  char payload[100];
+  doc.clear(); // clear document
+  doc["source"] = "temperature"; // add data to document
+  doc["value"] = data;
+  serializeJson(doc, payload); // serialize JSON message
+  mqtt_client.publish("tzt/luca/esp32/data", payload); // publish status message
   // Serial.println("Published status message");
   mqtt_client.loop(); // process MQTT messages
   if (!mqtt_client.connected()) {
@@ -76,7 +82,7 @@ void loop() {
     mqtt_client.connect("alexa!@$@$&^@%!*&^%$&^@!%^$*&@faer343"); // reconnect
   }
 
- delay(1000);  // main loop does nothing, tasks handle the work
+ delay(3000);  // main loop does nothing, tasks handle the work
 }
  
 void task_read_mic(void *pvParameters){
