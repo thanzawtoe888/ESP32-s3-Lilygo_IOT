@@ -4,6 +4,12 @@ services :
         depends_on:
             - mosquitto
             - mongo
+    rest_app:
+        build: ./rest_app
+        depends_on:
+            - mongo
+        ports:
+            - "5000:5000"
     mosquitto:
         image: eclipse-mosquitto
         ports:
@@ -22,5 +28,6 @@ services :
         environment:
           MONGO_INITDB_ROOT_USERNAME: root
           MONGO_INITDB_ROOT_PASSWORD: example
+          MONGO_INITDB_DATABASE: luca_db
         
             

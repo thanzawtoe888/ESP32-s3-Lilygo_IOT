@@ -12,33 +12,39 @@ def on_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with result code {reason_code}")
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
-    client.subscribe("tzt/luca/esp32/data")
+    client.subscribe("tzt/luca/esp32/#")
 
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     print(msg.topic+" "+str(msg.payload))
-    
-    #insert to SQLite 
-    try:
-        dev_name =msg.topic.split("/")[2]  #get the last part of the topic, which is the device name ('/' will be the seperation)
-        dev_data = json.loads(msg.payload.decode())['value']
-        # sql_cmd = f"INSERT INTO luca (device, data) VALUES ('{dev_name}', {dev_data})"  #don't use this line, it is not flexible so we need to use placeholder style under 
-        c.execute("INSERT INTO luca (device, data) VALUES (?, ?)",
-                    (dev_name, dev_data))  #placeholder style 
-        conn.commit()  #commit the changes to the database **important**
-    except :
-        print("Error: cannot inset to SQLite")
-    
-    #insert to MongoDB
-    dev_db = mongo_client.luca  #get the database
-    dev_col = dev_db.log
-    data = {"device": dev_name, 
-            "timestamp": datetime.now(),
-            "data": dev_data
-            }  #create a dictionary to insert to the database
-    dev_col.insert_one(data)  #insert the data to the database
+    #heartbeat message
+    if msg.topic.split("/")[-1] == "beat":
+        data  = json.loads(msg.payload.decode())  #decode the payload to a json object
+        print(f"Device: {data['mac']}")
+        return
+    if msg.topic.split("/")[-1] == "data":
+        data = json.loads(msg.payload.decode())  #decode the payload to a json object
+        print(f"Device: {data['name']}")
         
+        station = msg.topic.split("/")[2]  #get the last part of the topic, which is the device name ('/' will be the seperation)
+        device = data['name'] 
+        rssi = data ['rssi']
+        c.execute("INSERT INTO luca (station, device, rssi) VALUES (?, ?, ?)",
+                    (station, device, rssi))  #placeholder style
+        print("Inserted to SQLite") 
+        conn.commit()
+  
+    
+        #insert to MongoDB
+        db = mongo_client.luca_db  #get the database
+        db_col = db.ble.log
+        #create a dictionary to insert to the database
+        db_col.insert_one({"timestamp" : datetime.now(),
+                       "station" : station,
+                       "device" : device,
+                       "rssi" : rssi})  #insert the data to the database
+        print("Inserted to MongoDB")
     #insert to firebas e 
     
     # payload ={"timestamp": datetime.now().isoformat(), "message": msg.payload.decode("utf-8")}
@@ -51,13 +57,16 @@ c= conn.cursor()  #to execute sql commands
 c.execute('''CREATE TABLE IF NOT EXISTS luca (
           _id INTEGER PRIMARY KEY AUTOINCREMENT,
           timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          station TEXT,
           device TEXT,
-          data REAL             )''')
+          rssi INTEGER
+          )''')  #create a table if it does not exist
 conn.commit()  #commit the changes to the database **important**
 # _id=name of the column, Interger= column type, PRIMARY KEY= unique value, AUTOINCREMENT= automatically increase the value of the column
 
 #init MongoDB
-mongo_client = MongoClient("mongodb://root:example@mongo:27017")  #connect to the MongoDB database
+mongo_client = MongoClient("luca_dokcer_compose-mongo-1',27017",
+                           username= 'root', password= 'example')  #connect to the MongoDB database
 
 #init MQTT
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
